@@ -1,0 +1,36 @@
+services:
+    oro_db_extension.process_executor:
+        public: false
+        class: 'Oro\Component\Database\Service\ProcessExecutor'
+
+    oro_db_extension.engine.pdo_mysql:
+        class: 'Oro\Component\Database\Engine\MysqlDatabaseEngine'
+        public: false
+        arguments:
+            - '@oro_db_extension.process_executor'
+
+    oro_db_extension.engine.pdo_pgsql:
+        class: 'Oro\Component\Database\Engine\PgsqlDatabaseEngine'
+        public: false
+        arguments:
+            - '@oro_db_extension.process_executor'
+
+    oro_db_extension.engine.registry:
+        class: 'Oro\Component\Database\Service\DatabaseEngineRegistry'
+        lazy: true
+        calls:
+            - ['addEngine',['@oro_db_extension.engine.pdo_mysql', 'pdo_mysql']]
+            - ['addEngine',['@oro_db_extension.engine.pdo_pgsql', 'pdo_pgsql']]
+
+    oro_db_extension.isolation.test_isolation_subscriber:
+        class: 'Oro\BehatExtension\DatabaseBehatExtension\Subscriber\DatabaseIsolationSubscriber'
+        arguments:
+            - '@oro_db_extension.engine.registry'
+            - []
+            - ~
+        calls:
+            - ['setInput', ['@cli.input']]
+            - ['setOutput', ['@cli.output']]
+
+        tags:
+          - { name: 'event_dispatcher.subscriber', priority: -100 }

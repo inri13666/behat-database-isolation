@@ -1,0 +1,30 @@
+{
+  "name": "gorgo13/behat-database-extension",
+  "type": "behat-extension",
+  "description": "",
+  "keywords": [],
+  "homepage": "https://github.com/inri13666/behat-database-isolation",
+  "license": "WTFPL",
+  "authors": [
+    {
+      "name": "Nikita Makarov",
+      "email": "mesaverde228@gmail.com"
+    }
+  ],
+  "minimum-stability": "dev",
+  "require": {
+    "php": ">=5.4",
+    "gorgo13/database-component": ">=1.0",
+    "behat/symfony2-extension": ">=2.1.1"
+  },
+  "suggest": {
+    "doctrine/doctrine-bundle": "To use connection isolation",
+    "oro/platform": "Very flexible platform"
+  },
+  "autoload": {
+    "psr-0": {
+      "Oro\\BehatExtension\\DatabaseBehatExtension": ""
+    }
+  },
+  "target-dir": "Oro/BehatExtension/DatabaseBehatExtension"
+}
