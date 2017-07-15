@@ -1,0 +1,9 @@
+services:
+    oro_behat.extension.isolation.database:
+        class: 'Oro\BehatExtension\DatabaseBehatExtension\Legacy\OroDatabaseBehatIsolator'
+        lazy: true
+        arguments:
+            - '@oro_db_extension.engine.registry'
+            - '~'
+        tags:
+            - { name: 'oro_behat.isolator', priority: 110 }

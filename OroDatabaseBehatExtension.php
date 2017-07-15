@@ -31,6 +31,7 @@ class OroDatabaseBehatExtension implements Extension
 
     const DOCTRINE_CONNECTIONS_NODE = 'doctrine_connections';
     const TIMEOUT_NODE = 'timeout';
+    const ORO_LEGACY_NODE = 'oro_legacy';
 
     /** @var array */
     protected $config = [];
@@ -41,7 +42,9 @@ class OroDatabaseBehatExtension implements Extension
     public function process(ContainerBuilder $container)
     {
         $this->processDoctrineConnections($container, $this->config);
-        $this->removeOroLegacy($container);
+        if ($container->getParameter(self::ORO_LEGACY_NODE)) {
+            $this->removeOroLegacy($container);
+        }
     }
 
     /**
@@ -66,6 +69,7 @@ class OroDatabaseBehatExtension implements Extension
     {
         $builder
             ->children()
+                ->booleanNode(self::ORO_LEGACY_NODE)->defaultFalse()->end()
                 ->arrayNode(self::DOCTRINE_CONNECTIONS_NODE)
                     ->prototype('scalar')->end()
                     ->info('Doctrine\'s connections to be isolated')
@@ -110,6 +114,16 @@ class OroDatabaseBehatExtension implements Extension
         $loader->load('services.yml');
 
         $this->config = $config;
+        $isLegacy = $config[self::ORO_LEGACY_NODE];
+        $container->setParameter(self::ORO_LEGACY_NODE, $isLegacy);
+
+        if ($isLegacy) {
+            $loader->load('legacy_services.yml');
+
+            if ($container->hasDefinition('oro_db_extension.isolation.test_isolation_subscriber')) {
+                $container->removeDefinition('oro_db_extension.isolation.test_isolation_subscriber');
+            }
+        }
 
         $this->loadIsolators($container, $config);
     }
@@ -135,7 +149,6 @@ class OroDatabaseBehatExtension implements Extension
             $definition->addMethodCall('setPsqlBin', [$pgsqlConfig[self::PSQL_BIN_NODE]]);
         }
     }
-
 
     /**
      * @param ContainerBuilder $container
@@ -167,11 +180,15 @@ class OroDatabaseBehatExtension implements Extension
             }
         }
 
-        $definition = $container->getDefinition('oro_db_extension.isolation.test_isolation_subscriber');
-        $definition->replaceArgument(1, $connections);
+        $installed = $appKernel->getContainer()->hasParameter('installed');
 
-        if ($appKernel->getContainer()->hasParameter('installed')) {
-            $definition->replaceArgument(2, $appKernel->getContainer()->getParameter('installed'));
+        if (!$container->getParameter(self::ORO_LEGACY_NODE)) {
+            $definition = $container->getDefinition('oro_db_extension.isolation.test_isolation_subscriber');
+            $definition->replaceArgument(1, $connections);
+            $definition->replaceArgument(2, $installed ? $appKernel->getContainer()->getParameter('installed') : null);
+        } else {
+            $definition = $container->getDefinition('oro_behat.extension.isolation.database');
+            $definition->replaceArgument(1, $installed ? $appKernel->getContainer()->getParameter('installed') : 'ORO');
         }
     }
 
