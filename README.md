@@ -10,6 +10,7 @@
 
 ```
         Oro\BehatExtension\DatabaseBehatExtension\OroDatabaseBehatExtension:
+            oro_legacy: ~ # if true then replaces ORO's behat database isolators with this one  
             doctrine_connections: ~ # List of doctrine connections to isolate default: "['default']"
             mysql:
                 mysql: ~ # path to "mysql" binary, for example "/usr/bin/mysql", default: "mysql"
