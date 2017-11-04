@@ -33,4 +33,4 @@ services:
             - ['setOutput', ['@cli.output']]
 
         tags:
-          - { name: 'event_dispatcher.subscriber', priority: -100 }
+          - { name: 'event_dispatcher.subscriber', priority: 0 }

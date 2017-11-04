@@ -2,14 +2,18 @@
 
 namespace Oro\BehatExtension\DatabaseBehatExtension\Legacy;
 
+use Behat\Testwork\EventDispatcher\Event\BeforeExerciseCompleted;
+use Behat\Testwork\Specification\NoSpecificationsIterator;
+use Behat\Testwork\Specification\SpecificationIterator;
 use Oro\Bundle\TestFrameworkBundle\Behat\Isolation;
 use Oro\Component\Database\Engine\DatabaseEngineInterface;
 use Oro\Component\Database\Model\DatabaseConfigurationModel;
 use Oro\Component\Database\Service\DatabaseEngineRegistry;
 use Symfony\Component\DependencyInjection\ContainerAwareTrait;
 use Symfony\Component\DependencyInjection\ContainerInterface;
+use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 
-class OroDatabaseBehatIsolator implements Isolation\IsolatorInterface
+class OroDatabaseBehatIsolator implements Isolation\IsolatorInterface, EventSubscriberInterface
 {
     use ContainerAwareTrait;
 
@@ -25,10 +29,41 @@ class OroDatabaseBehatIsolator implements Isolation\IsolatorInterface
     /** @var DatabaseEngineInterface */
     protected $engine;
 
+    /** @var int */
+    protected $featuresCount = 0;
+
+    /**
+     * @param DatabaseEngineRegistry $databaseEngineRegistry
+     * @param $installed
+     */
     public function __construct(DatabaseEngineRegistry $databaseEngineRegistry, $installed)
     {
         $this->databaseEngineRegistry = $databaseEngineRegistry;
         $this->sid = md5($installed);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public static function getSubscribedEvents()
+    {
+        return [
+            BeforeExerciseCompleted::BEFORE => ['countFeatures', 5],
+        ];
+    }
+
+    /**
+     * @param BeforeExerciseCompleted $event
+     */
+    public function countFeatures(BeforeExerciseCompleted $event)
+    {
+        $iterator = $event->getSpecificationIterators();
+        /** @var SpecificationIterator $exercise */
+        foreach ($iterator as $exercise) {
+            if (!$exercise instanceof NoSpecificationsIterator) {
+                $this->featuresCount += count($exercise->getSuite()->getSetting('paths'));
+            }
+        }
     }
 
     /**
@@ -68,9 +103,9 @@ class OroDatabaseBehatIsolator implements Isolation\IsolatorInterface
      */
     public function start(Isolation\Event\BeforeStartTestsEvent $event)
     {
-        $event->writeln('<info>Dumping current application database</info>');
+        $event->writeln('<info>[OroDatabaseBehatIsolator] Dumping current application database</info>');
         $this->findCurrentDatabaseEngine()->dump($this->sid, $this->getConfiguration());
-        $event->writeln('<info>Dump created</info>');
+        $event->writeln('<info>[OroDatabaseBehatIsolator] Dump created</info>');
     }
 
     /**
@@ -86,7 +121,11 @@ class OroDatabaseBehatIsolator implements Isolation\IsolatorInterface
      */
     public function afterTest(Isolation\Event\AfterIsolatedTestEvent $event)
     {
-        $this->findCurrentDatabaseEngine()->restore($this->sid, $this->getConfiguration());
+        if (1 < $this->featuresCount) {
+            $event->writeln('<info>[OroDatabaseBehatIsolator] Restoring dump database before next feature</info>');
+            $this->findCurrentDatabaseEngine()->restore($this->sid, $this->getConfiguration());
+            $event->writeln('<info>[OroDatabaseBehatIsolator] finished</info>');
+        }
     }
 
     /**
@@ -94,10 +133,12 @@ class OroDatabaseBehatIsolator implements Isolation\IsolatorInterface
      */
     public function terminate(Isolation\Event\AfterFinishTestsEvent $event)
     {
+        $event->writeln('<info>[OroDatabaseBehatIsolator] Restoring dump kernel cache</info>');
         $config = $this->getConfiguration();
         $isolator = $this->findCurrentDatabaseEngine();
         $isolator->restore($this->sid, $config);
         $isolator->drop($isolator->getBackupDbName($this->sid, $config), $config);
+        $event->writeln('<info>[OroDatabaseBehatIsolator] finished</info>');
     }
 
     /**
@@ -144,6 +185,7 @@ class OroDatabaseBehatIsolator implements Isolation\IsolatorInterface
         $isolator = $this->findCurrentDatabaseEngine();
 
         $config = $this->getConfiguration();
+
         return $isolator->verify($isolator->getBackupDbName($this->sid, $config), $config);
     }
 
@@ -152,7 +194,7 @@ class OroDatabaseBehatIsolator implements Isolation\IsolatorInterface
      */
     public function getName()
     {
-        return "Oro Legacy Isolator";
+        return "OroDatabaseBehatIsolator";
     }
 
     /**

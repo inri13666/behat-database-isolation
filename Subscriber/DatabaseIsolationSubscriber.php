@@ -5,6 +5,8 @@ namespace Oro\BehatExtension\DatabaseBehatExtension\Subscriber;
 use Behat\Behat\EventDispatcher\Event as BehatEvent;
 use Behat\Testwork\EventDispatcher\Event as TestWorkEvent;
 
+use Behat\Testwork\Specification\NoSpecificationsIterator;
+use Behat\Testwork\Specification\SpecificationIterator;
 use Oro\Component\Database\Model\DatabaseConfigurationModel;
 use Oro\Component\Database\Service\DatabaseEngineRegistry;
 
@@ -33,6 +35,9 @@ class DatabaseIsolationSubscriber implements EventSubscriberInterface
     /** @var InputInterface */
     protected $input;
 
+    /** @var int */
+    protected $featuresCount = 0;
+
     /**
      * DatabaseIsolationSubscriber constructor.
      *
@@ -56,14 +61,23 @@ class DatabaseIsolationSubscriber implements EventSubscriberInterface
     public static function getSubscribedEvents()
     {
         return [
-            TestWorkEvent\BeforeExerciseCompleted::BEFORE => ['beforeExercise', 100],
+            TestWorkEvent\BeforeExerciseCompleted::BEFORE => ['beforeExercise', 0],
             BehatEvent\AfterFeatureTested::AFTER => ['afterFeature', -100],
             TestWorkEvent\AfterExerciseCompleted::AFTER => ['afterExercise', -100],
         ];
     }
 
-    public function beforeExercise()
+    /**
+     * @param TestWorkEvent\BeforeExerciseCompleted $event
+     */
+    public function beforeExercise(TestWorkEvent\BeforeExerciseCompleted $event)
     {
+        $this->countFeatures($event);
+
+        if (!$this->featuresCount) {
+            throw new \Exception('No Features found');
+        }
+
         $this->output->writeln('<comment>OroBehatDatabaseExtension taking place</comment>');
 
         foreach ($this->connections as $key => $connection) {
@@ -107,16 +121,32 @@ class DatabaseIsolationSubscriber implements EventSubscriberInterface
         }
     }
 
+    /**
+     * @param TestWorkEvent\BeforeExerciseCompleted $event
+     */
+    protected function countFeatures(TestWorkEvent\BeforeExerciseCompleted $event)
+    {
+        $iterator = $event->getSpecificationIterators();
+        /** @var SpecificationIterator $exercise */
+        foreach ($iterator as $exercise) {
+            if (!$exercise instanceof NoSpecificationsIterator) {
+                $this->featuresCount += count($exercise->getSuite()->getSetting('paths'));
+            }
+        }
+    }
+
     public function afterFeature()
     {
-        foreach ($this->connections as $key => $connection) {
-            $engine = $this->databaseEngineRegistry->findEngine($connection);
+        if (1 < $this->featuresCount) {
+            foreach ($this->connections as $key => $connection) {
+                $engine = $this->databaseEngineRegistry->findEngine($connection);
 
-            $this->output->writeln(
-                sprintf('Restoring dump for connection "%s"', $key),
-                OutputInterface::VERBOSITY_VERBOSE
-            );
-            $engine->restore($this->databaseStateIdentifier, $connection);
+                $this->output->writeln(
+                    sprintf('Restoring dump for connection "%s"', $key),
+                    OutputInterface::VERBOSITY_VERBOSE
+                );
+                $engine->restore($this->databaseStateIdentifier, $connection);
+            }
         }
     }
 

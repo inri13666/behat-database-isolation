@@ -7,3 +7,4 @@ services:
             - '~'
         tags:
             - { name: 'oro_behat.isolator', priority: 110 }
+            - { name: 'event_dispatcher.subscriber', priority: 0 }
